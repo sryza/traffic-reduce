@@ -42,11 +42,13 @@ public class AveragerMapper extends Mapper<LongWritable, Text, Text, AverageWrit
 
     if (trafficCount.length() > 0) {
       id.set(stationId + "_" + TimeUtil.toTimeOfWeek(dateTime));
-      outAverage.set(1, Integer.parseInt(trafficCount));
+      if (trafficCount.matches("[0-9]+")) {
+        outAverage.set(1, Integer.parseInt(trafficCount));
+      } else {
+        context.getCounter("Averager Counters", "Missing vehicle flows").increment(1);
+      }
       
       context.write(id, outAverage);
-    } else {
-      context.getCounter("Averager Counters", "Missing traffic counts").increment(1);
     }
   }
 }
