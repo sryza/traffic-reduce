@@ -31,42 +31,53 @@ package com.cloudera.traffic;
  * limitations under the License.
  */
 
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
+import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
-import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 
-public class AveragerRunner extends Configured implements Tool {
+/**
+ * Runs a mapreduce job that builds a file mapping station id and absolute
+ * time to deviation from the average speed at that time of the week.
+ * 
+ * Records are grouped by time first to allow for scans over a time range.
+ */
+public class IndexBuilderRunner extends Configured implements Tool {
+  
   public static void main(String[] args) throws Exception {
-    ToolRunner.run(new AveragerRunner(), args);
+    ToolRunner.run(new IndexBuilderRunner(), args);
   }
 
   @Override
-  public int run(String[] args) throws Exception {
-    Configuration conf = getConf();
-    Job job = new Job(conf);
-    job.setJarByClass(AveragerRunner.class);
-    job.setMapperClass(AveragerMapper.class);
-    job.setReducerClass(AveragerReducer.class);
-    job.setCombinerClass(AveragerReducer.class);
-    job.setMapOutputKeyClass(Text.class);
-    job.setMapOutputValueClass(AverageWritable.class);
-    job.setOutputKeyClass(Text.class);
-    job.setOutputValueClass(AverageWritable.class);
-    job.setInputFormatClass(TextInputFormat.class);
-    job.setOutputFormatClass(SequenceFileOutputFormat.class);
+  public int run(String[] args) throws IOException, ClassNotFoundException,
+      InterruptedException, URISyntaxException {
     
+    Configuration conf = getConf();
+        
+    DistributedCache.addCacheFile(new URI(args[2]), conf);
+    
+    Job job = new Job(conf);
+    
+    job.setMapperClass(IndexMapper.class);
+    job.setReducerClass(IndexReducer.class);
+    job.setMapOutputKeyClass(IdWritable.class);
+    job.setMapOutputValueClass(DoubleWritable.class);
+    job.setOutputFormatClass(TrafficOutputFormat.class);
     FileInputFormat.addInputPath(job, new Path(args[0]));
     FileOutputFormat.setOutputPath(job, new Path(args[1]));
-
     job.waitForCompletion(true);
+    
     return 0;
   }
 }
+
